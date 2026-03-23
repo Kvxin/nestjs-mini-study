@@ -1,41 +1,160 @@
+/**
+ * Prisma 数据库 Schema 定义
+ * 
+ * 这个文件定义了数据库的所有表结构、枚举类型和关系
+ * Prisma 会根据这个文件生成类型安全的数据库客户端
+ * 
+ * 数据库：PostgreSQL
+ * ORM: Prisma
+ * 
+ * @file prisma/schema.prisma
+ */
+
+// ============ 生成器配置 ============
+
+/**
+ * Prisma 客户端生成器
+ * 
+ * provider: 使用 prisma-client-js 生成器
+ * 作用：生成类型安全的 TypeScript 数据库客户端
+ * 
+ * 生成命令：pnpm prisma generate
+ * 生成位置：node_modules/.prisma/client
+ */
 generator client {
   provider = "prisma-client-js"
 }
 
+// ============ 数据源配置 ============
+
+/**
+ * 数据库连接配置
+ * 
+ * provider: 使用 PostgreSQL 数据库
+ * url: 从环境变量 DATABASE_URL 读取连接字符串
+ * 
+ * 连接字符串格式（见 .env）：
+ * postgresql://用户名：密码@主机：端口/数据库名？schema=public
+ * 
+ * 示例：postgresql://postgres:postgres@localhost:5432/nest_ecommerce?schema=public
+ */
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+// ============ 枚举类型定义 ============
+
+/**
+ * 用户角色枚举
+ * 
+ * 使用场景：
+ * - 用户注册时默认为 USER
+ * - 管理员创建商品需要 ADMIN 权限
+ * 
+ * 权限说明：
+ * - USER: 普通用户，可以浏览商品、下单、查看自己的订单
+ * - ADMIN: 管理员，可以管理商品、查看所有订单
+ */
 enum UserRole {
   USER
   ADMIN
 }
 
+/**
+ * 用户状态枚举
+ * 
+ * 使用场景：
+ * - 用户注册时默认为 ACTIVE
+ * - 违规用户可以被设置为 DISABLED，禁止登录
+ * 
+ * 验证位置：apps/user-service/src/user.service.ts:67
+ * 登录时会检查用户状态，DISABLED 用户无法登录
+ */
 enum UserStatus {
-  ACTIVE
-  DISABLED
+  ACTIVE     // 正常状态
+  DISABLED   // 禁用状态
 }
 
+/**
+ * 商品状态枚举
+ * 
+ * 使用场景：
+ * - DRAFT: 草稿状态，管理员创建商品时可以先保存为草稿
+ * - ACTIVE: 上架状态，用户可以浏览和购买
+ * - INACTIVE: 下架状态，用户无法看到或购买
+ * 
+ * 验证位置：apps/product-service/src/product.service.ts:99
+ * 检查库存时会验证商品状态必须是 ACTIVE
+ */
 enum ProductStatus {
-  DRAFT
-  ACTIVE
-  INACTIVE
+  DRAFT    // 草稿
+  ACTIVE   // 上架
+  INACTIVE // 下架
 }
 
+/**
+ * 订单状态枚举
+ * 
+ * 订单状态流转：
+ * PENDING_PAYMENT -> PAID (支付成功)
+ * PENDING_PAYMENT -> CANCELLED (用户取消或超时未支付)
+ * 
+ * 使用场景：
+ * - 创建订单时默认为 PENDING_PAYMENT
+ * - 支付成功后更新为 PAID（见 apps/order-service/src/order.service.ts:133）
+ * - 用户取消订单时更新为 CANCELLED
+ */
 enum OrderStatus {
-  PENDING_PAYMENT
-  PAID
-  CANCELLED
+  PENDING_PAYMENT  // 待支付
+  PAID             // 已支付
+  CANCELLED        // 已取消
 }
 
+/**
+ * 支付状态枚举
+ * 
+ * 支付状态流转：
+ * CREATED -> SUCCESS (支付成功)
+ * CREATED -> FAILED (支付失败)
+ * CREATED -> CANCELLED (用户取消支付)
+ * 
+ * 使用场景：
+ * - 创建支付记录时默认为 CREATED
+ * - 用户确认支付后更新为 SUCCESS（见 apps/payment-service/src/payment.service.ts:89）
+ */
 enum PaymentStatus {
-  CREATED
-  SUCCESS
-  FAILED
-  CANCELLED
+  CREATED    // 已创建，待支付
+  SUCCESS    // 支付成功
+  FAILED     // 支付失败
+  CANCELLED  // 已取消
 }
 
+// ============ 数据模型定义 ============
+
+/**
+ * 用户模型（User 表）
+ * 
+ * 对应数据库表：User
+ * 主键：id (String, cuid 自动生成)
+ * 
+ * 字段说明：
+ * - id: 用户 ID，使用 cuid 生成（比 UUID 更短更高效）
+ * - email: 邮箱地址，唯一索引，用于登录
+ * - passwordHash: 密码哈希值（使用 bcrypt 加密）
+ * - role: 用户角色，默认 USER
+ * - status: 用户状态，默认 ACTIVE
+ * - createdAt: 创建时间，自动记录
+ * - updatedAt: 更新时间，自动更新
+ * 
+ * 关系：
+ * - refreshTokens: 一对多，一个用户可以有多个刷新令牌会话
+ * - orders: 一对多，一个用户可以有多个订单
+ * 
+ * 使用位置：
+ * - 用户注册：apps/user-service/src/user.service.ts:33
+ * - 用户登录：apps/user-service/src/user.service.ts:50
+ */
 model User {
   id            String                @id @default(cuid())
   email         String                @unique
@@ -44,25 +163,88 @@ model User {
   status        UserStatus            @default(ACTIVE)
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
-  refreshTokens RefreshTokenSession[]
-  orders        Order[]
+  refreshTokens RefreshTokenSession[]  // 一对多关系
+  orders        Order[]                // 一对多关系
 }
 
+/**
+ * 刷新令牌会话模型（RefreshTokenSession 表）
+ * 
+ * 作用：存储用户的刷新令牌，实现双 Token 机制
+ * 
+ * 为什么需要刷新令牌：
+ * 1. 访问令牌（Access Token）有效期短（15 分钟），泄露风险小
+ * 2. 刷新令牌（Refresh Token）有效期长（7 天），存储在 httpOnly Cookie 中
+ * 3. 访问令牌过期后，用刷新令牌获取新的访问令牌
+ * 4. 用户可以保持登录状态，无需频繁输入密码
+ * 
+ * 字段说明：
+ * - id: 会话 ID
+ * - userId: 关联的用户 ID
+ * - tokenHash: 刷新令牌的哈希值（不存储明文）
+ * - deviceInfo: 设备信息（可选），用于识别登录设备
+ * - expiresAt: 过期时间
+ * - revokedAt: 撤销时间（用于登出）
+ * 
+ * 索引：
+ * - @@index([userId]): 加速按用户 ID 查询
+ * 
+ * 使用位置：
+ * - 生成令牌：apps/user-service/src/user.service.ts:171
+ * - 验证令牌：apps/user-service/src/user.service.ts:95
+ * - 撤销令牌：apps/user-service/src/user.service.ts:107（登出）
+ */
 model RefreshTokenSession {
   id         String   @id @default(cuid())
   userId     String
   tokenHash  String
-  deviceInfo String?
+  deviceInfo String?   // 可选字段
   expiresAt  DateTime
-  revokedAt  DateTime?
+  revokedAt  DateTime? // 可选字段，null 表示未撤销
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  /**
+   * 外键关系定义
+   * 
+   * @relation 参数说明：
+   * - fields: 当前模型的外键字段
+   * - references: 关联模型的主键字段
+   * - onDelete: Cascade - 用户删除时，级联删除所有刷新令牌会话
+   */
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  /**
+   * 复合索引
+   * 
+   * 作用：加速按 userId 查询的 SQL 语句
+   * 使用场景：验证刷新令牌时，需要查询用户的所有会话
+   */
   @@index([userId])
 }
 
+/**
+ * 商品模型（Product 表）
+ * 
+ * 对应数据库表：Product
+ * 
+ * 字段说明：
+ * - id: 商品 ID
+ * - title: 商品标题
+ * - description: 商品描述（可选）
+ * - price: 商品价格，Decimal(10,2) 表示最多 10 位数字，2 位小数
+ * - stock: 库存数量
+ * - status: 商品状态
+ * - coverUrl: 封面图片 URL（可选）
+ * 
+ * 关系：
+ * - orderItems: 一对多，一个商品可以出现在多个订单项中
+ * 
+ * 使用位置：
+ * - 创建商品：apps/product-service/src/product.service.ts:16
+ * - 查询商品：apps/product-service/src/product.service.ts:70
+ * - 库存检查：apps/product-service/src/product.service.ts:86
+ */
 model Product {
   id          String        @id @default(cuid())
   title       String
@@ -73,9 +255,34 @@ model Product {
   coverUrl    String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
-  orderItems  OrderItem[]
+  orderItems  OrderItem[]   // 一对多关系
 }
 
+/**
+ * 订单模型（Order 表）
+ * 
+ * 对应数据库表：Order
+ * 
+ * 字段说明：
+ * - id: 订单 ID
+ * - orderNo: 订单号，唯一，用于对外展示（比 ID 更友好）
+ * - userId: 下单用户 ID
+ * - totalAmount: 订单总金额
+ * - status: 订单状态
+ * - paymentId: 关联的支付记录 ID，唯一索引（一个订单只有一个支付记录）
+ * 
+ * 关系：
+ * - items: 一对多，一个订单包含多个订单项
+ * - user: 多对一，多个订单属于一个用户
+ * - payment: 一对一，一个订单对应一个支付记录
+ * 
+ * 索引：
+ * - @@index([userId]): 加速查询用户的所有订单
+ * 
+ * 使用位置：
+ * - 创建订单：apps/order-service/src/order.service.ts:40
+ * - 查询订单：apps/order-service/src/order.service.ts:93
+ */
 model Order {
   id          String       @id @default(cuid())
   orderNo     String       @unique
@@ -87,11 +294,45 @@ model Order {
   updatedAt   DateTime     @updatedAt
   items       OrderItem[]
   user        User         @relation(fields: [userId], references: [id], onDelete: Restrict)
-  payment     Payment?
+  payment     Payment?     // 一对一关系（可选）
 
+  /**
+   * 索引定义
+   * 
+   * 加速按 userId 查询，用于"我的订单"功能
+   */
   @@index([userId])
 }
 
+/**
+ * 订单项模型（OrderItem 表）
+ * 
+ * 作用：存储订单中的商品明细
+ * 
+ * 为什么需要快照字段：
+ * - snapshotTitle: 商品标题快照，即使商品后来改名，订单中仍保留购买时的名称
+ * - snapshotPrice: 商品价格快照，即使商品后来调价，订单中仍保留购买时的价格
+ * 
+ * 字段说明：
+ * - id: 订单项 ID
+ * - orderId: 关联的订单 ID
+ * - productId: 关联的商品 ID
+ * - snapshotTitle: 商品标题快照
+ * - snapshotPrice: 商品价格快照
+ * - quantity: 购买数量
+ * - subtotal: 小计金额（单价 × 数量）
+ * 
+ * 关系：
+ * - order: 多对一，多个订单项属于一个订单
+ * - product: 多对一，多个订单项可以指向同一个商品
+ * 
+ * 索引：
+ * - @@index([orderId]): 加速查询订单的所有商品
+ * - @@index([productId]): 加速查询商品的所有订单
+ * 
+ * 使用位置：
+ * - 创建订单项：apps/order-service/src/order.service.ts:50
+ */
 model OrderItem {
   id            String   @id @default(cuid())
   orderId       String
@@ -109,6 +350,29 @@ model OrderItem {
   @@index([productId])
 }
 
+/**
+ * 支付模型（Payment 表）
+ * 
+ * 对应数据库表：Payment
+ * 
+ * 字段说明：
+ * - id: 支付记录 ID
+ * - paymentNo: 支付号，唯一，用于对外展示
+ * - orderId: 关联的订单 ID，唯一索引（一个支付只对应一个订单）
+ * - amount: 支付金额
+ * - status: 支付状态
+ * - payUrl: 支付页面 URL，用户访问此 URL 进行支付确认
+ * - qrCodeData: 二维码数据（Base64 编码的 DataURL），用于生成支付二维码
+ * - paidAt: 支付成功时间
+ * 
+ * 关系：
+ * - order: 一对一，一个支付对应一个订单
+ * 
+ * 使用位置：
+ * - 创建支付：apps/payment-service/src/payment.service.ts:24
+ * - 确认支付：apps/payment-service/src/payment.service.ts:76
+ * - 渲染支付页：apps/payment-service/src/payment.service.ts:107
+ */
 model Payment {
   id         String        @id @default(cuid())
   paymentNo  String        @unique
@@ -116,7 +380,7 @@ model Payment {
   amount     Decimal       @db.Decimal(10, 2)
   status     PaymentStatus @default(CREATED)
   payUrl     String
-  qrCodeData String        @db.Text
+  qrCodeData String        @db.Text  // Text 类型存储大数据（二维码 Base64）
   paidAt     DateTime?
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
