@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  CANCELLED
+}
+
+enum PaymentStatus {
+  CREATED
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+model User {
+  id            String                @id @default(cuid())
+  email         String                @unique
+  passwordHash  String
+  role          UserRole              @default(USER)
+  status        UserStatus            @default(ACTIVE)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  refreshTokens RefreshTokenSession[]
+  orders        Order[]
+}
+
+model RefreshTokenSession {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String
+  deviceInfo String?
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Product {
+  id          String        @id @default(cuid())
+  title       String
+  description String?
+  price       Decimal       @db.Decimal(10, 2)
+  stock       Int
+  status      ProductStatus @default(DRAFT)
+  coverUrl    String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  orderItems  OrderItem[]
+}
+
+model Order {
+  id          String       @id @default(cuid())
+  orderNo     String       @unique
+  userId      String
+  totalAmount Decimal      @db.Decimal(10, 2)
+  status      OrderStatus  @default(PENDING_PAYMENT)
+  paymentId   String?      @unique
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  items       OrderItem[]
+  user        User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  payment     Payment?
+
+  @@index([userId])
+}
+
+model OrderItem {
+  id            String   @id @default(cuid())
+  orderId       String
+  productId     String
+  snapshotTitle String
+  snapshotPrice Decimal  @db.Decimal(10, 2)
+  quantity      Int
+  subtotal      Decimal  @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model Payment {
+  id         String        @id @default(cuid())
+  paymentNo  String        @unique
+  orderId    String        @unique
+  amount     Decimal       @db.Decimal(10, 2)
+  status     PaymentStatus @default(CREATED)
+  payUrl     String
+  qrCodeData String        @db.Text
+  paidAt     DateTime?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
