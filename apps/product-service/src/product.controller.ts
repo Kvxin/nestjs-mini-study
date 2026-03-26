@@ -1,11 +1,14 @@
-import { Controller } from '@nestjs/common';
+import { Controller, Inject } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { PRODUCT_PATTERNS } from '../../../libs/contracts/messages';
 import { ProductServiceService } from './product.service';
 
 @Controller()
 export class ProductServiceController {
-  constructor(private readonly productService: ProductServiceService) {}
+  constructor(
+    @Inject(ProductServiceService)
+    private readonly productService: ProductServiceService,
+  ) {}
 
   @MessagePattern(PRODUCT_PATTERNS.CREATE)
   create(@Payload() payload: Parameters<ProductServiceService['create']>[0]) {

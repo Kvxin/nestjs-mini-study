@@ -12,6 +12,7 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Inject,
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -45,7 +46,7 @@ export class RolesGuard implements CanActivate {
    * - 读取装饰器设置的元数据
    * - 可以读取控制器级别和方法级别的元数据
    */
-  constructor(private readonly reflector: Reflector) {}
+  constructor(@Inject(Reflector) private readonly reflector: Reflector) {}
 
   /**
    * 激活检查方法

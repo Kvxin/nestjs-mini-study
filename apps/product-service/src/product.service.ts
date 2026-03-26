@@ -10,7 +10,7 @@
  * @module apps/product-service/src/product.service
  */
 
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { Prisma, ProductStatus } from '@prisma/client';
 import { decimalToNumber } from '../../../libs/common/utils';
 import { rpcError } from '../../../libs/common/rpc';
@@ -35,7 +35,7 @@ export class ProductServiceService {
    * - 产品服务不需要处理认证（由 API Gateway 负责）
    * - 不需要 JWT 相关功能
    */
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   // ============ 创建商品 ============
 

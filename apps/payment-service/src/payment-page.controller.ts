@@ -1,10 +1,13 @@
-import { Controller, Get, Param, Post, Res } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Post, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { PaymentServiceService } from './payment.service';
 
 @Controller('payments/page')
 export class PaymentPageController {
-  constructor(private readonly paymentService: PaymentServiceService) {}
+  constructor(
+    @Inject(PaymentServiceService)
+    private readonly paymentService: PaymentServiceService,
+  ) {}
 
   @Get(':paymentNo')
   async getPaymentPage(

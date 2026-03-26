@@ -10,7 +10,7 @@
  * @module apps/user-service/src/user.service
  */
 
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../libs/prisma/prisma.service';
@@ -63,8 +63,11 @@ export class UserServiceService {
    * - readonly: 只读属性，不能在类外部修改
    */
   constructor(
+    @Inject(PrismaService)
     private readonly prisma: PrismaService,
+    @Inject(JwtService)
     private readonly jwtService: JwtService,
+    @Inject(ConfigService)
     private readonly configService: ConfigService,
   ) {}
 
