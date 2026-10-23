@@ -50,7 +50,9 @@ export class PaymentServiceService {
    * - orderClient: 订单服务客户端，用于支付成功后更新订单状态
    */
   constructor(
+    @Inject(PrismaService)
     private readonly prisma: PrismaService,
+    @Inject(ConfigService)
     private readonly configService: ConfigService,
     @Inject(CLIENT_TOKENS.ORDER_SERVICE)
     private readonly orderClient: ClientProxy,

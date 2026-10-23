@@ -8,7 +8,9 @@ import { UserServiceService } from './user.service';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
-    JwtModule.register({}),
+    JwtModule.register({
+      global: true,
+    }),
     PrismaModule,
   ],
   controllers: [UserServiceController],

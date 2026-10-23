@@ -1,11 +1,14 @@
-import { Controller } from '@nestjs/common';
+import { Controller, Inject } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { USER_PATTERNS } from '../../../libs/contracts/messages';
 import { UserServiceService } from './user.service';
 
 @Controller()
 export class UserServiceController {
-  constructor(private readonly userService: UserServiceService) {}
+  constructor(
+    @Inject(UserServiceService)
+    private readonly userService: UserServiceService,
+  ) {}
 
   @MessagePattern(USER_PATTERNS.REGISTER)
   register(@Payload() payload: { email: string; password: string; deviceInfo?: string }) {

@@ -50,6 +50,7 @@ export class OrderServiceService {
    * - CLIENT_TOKENS.PRODUCT_SERVICE = 'PRODUCT_SERVICE'
    */
   constructor(
+    @Inject(PrismaService)
     private readonly prisma: PrismaService,
     @Inject(CLIENT_TOKENS.PRODUCT_SERVICE)
     private readonly productClient: ClientProxy,

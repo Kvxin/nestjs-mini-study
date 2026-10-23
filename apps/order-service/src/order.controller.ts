@@ -1,11 +1,14 @@
-import { Controller } from '@nestjs/common';
+import { Controller, Inject } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { ORDER_PATTERNS } from '../../../libs/contracts/messages';
 import { OrderServiceService } from './order.service';
 
 @Controller()
 export class OrderServiceController {
-  constructor(private readonly orderService: OrderServiceService) {}
+  constructor(
+    @Inject(OrderServiceService)
+    private readonly orderService: OrderServiceService,
+  ) {}
 
   @MessagePattern(ORDER_PATTERNS.CREATE)
   create(
